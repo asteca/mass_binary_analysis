@@ -22,11 +22,12 @@ def isochProcess(gaia_ID, cmd_systs, idx_header, met, age, ext, dist):
 
     # (magnitude and color), (magnitudes for the colors), (initial mass)
     isoch_phot = np.concatenate([[isoch_interp[0]], [isoch_interp[-2]]])
+    mass_ini = isoch_interp[-1]
 
     # Used for binary masses estimation
-    isoch_col_mags, mass_ini = isoch_interp[1:3], isoch_interp[-1]
+    isoch_col_mags = isoch_interp[1:3]
 
-    return turn_off, isoch_phot, isoch_col_mags, mass_ini
+    return turn_off, isoch_phot, mass_ini, isoch_col_mags
 
 
 def move(gaia_ID, cmd_systs, isoch, ext, dist, R_V=3.1):
@@ -64,7 +65,7 @@ def move(gaia_ID, cmd_systs, isoch, ext, dist, R_V=3.1):
     return np.array(iso_moved)
 
 
-def interp(isoch, N=2000):
+def interp(isoch, N=5000):
     interp_data = []
     for fce in isoch:
         t, xp = np.linspace(0., 1., N), np.linspace(0, 1, len(fce))

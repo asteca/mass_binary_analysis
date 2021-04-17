@@ -5,33 +5,62 @@ import matplotlib.gridspec as gridspec
 from astropy.visualization import hist
 
 
-def CMD(
-    thresh, met, age, ext, dist, clust_name, cluster, isoch_phot,
-        single_msk, binar_msk, b_fr, single_masses, m1_mass, m2_mass):
+def final(
+    clust_name, cluster, best_pars, isoch_phot, envelope, single_msk, binar_msk,
+    binar_probs, binar_P_thresh, splitmethod, single_masses, binar_fr_all,
+        m1_mass, m2_mass, tot_mass_1, tot_mass_2, tot_mass_3):
     """
     """
-    fig = plt.figure(figsize=(16, 16))
-    GS = gridspec.GridSpec(2, 2)
+    fig = plt.figure(figsize=(20, 20))
+    GS = gridspec.GridSpec(3, 3)
 
-    plt.subplot(GS[0])
-    plt.title("Binary distance threshold: {:.3f}".format(thresh))
-    plt.plot(
-        isoch_phot[1], isoch_phot[0],
-        label="({:.5f}, {:.2f}, {:.2f}, {:.2f})".format(met, age, ext, dist))
+    ax = plt.subplot(GS[0])
+    plt.title("N={}".format(len(binar_fr_all)))
+    hist(binar_fr_all, bins=20, ax=ax, histtype='stepfilled', alpha=0.4,
+         density=True)
+    _mean, _std = np.mean(binar_fr_all), np.std(binar_fr_all)
+    _16, _84 = np.percentile(binar_fr_all, (16, 84))
+    plt.axvline(_mean, c='g', ls=':', label="Mean ({:.2f} +/- {:.2f})".format(
+        _mean, _std))
+    plt.axvline(_16, c='r', ls=':', label="16p ({:.2f})".format(_16))
+    plt.axvline(_84, c='r', ls=':', label="84p ({:.2f})".format(_84))
+    plt.legend()
+    plt.xlabel(r"$b_fr$")
+
+    ax = plt.subplot(GS[1])
+    # hist(binar_probs, bins='knuth', ax=ax, histtype='stepfilled', alpha=0.4,
+    #      density=True)
+    plt.hist(binar_probs, histtype='stepfilled', alpha=0.4, density=True)
+    plt.axvline(binar_P_thresh, c='r', ls=':', label="P_thresh= {:.2f}".format(
+        binar_P_thresh))
+    plt.xlabel(r"$P_{binar}$")
+    plt.legend()
+
+    ax = plt.subplot(GS[2])
+    ax.minorticks_on()
+    if splitmethod == 'isochs':
+        plt.plot(
+            isoch_phot[1], isoch_phot[0], c='k',
+            label="({:.5f}, {:.2f}, {:.2f}, {:.2f})".format(*best_pars))
+    elif splitmethod == 'envelope':
+        plt.plot(envelope[1], envelope[0], c='k', label="Lower envelope")
+
     plt.scatter(
         cluster[1][single_msk], cluster[0][single_msk], s=20,
         edgecolor='g', facecolor='none', alpha=.5,
         label="Single (N={})".format(single_msk.sum()))
+    b_fr = binar_msk.sum() / (binar_msk.sum() + single_msk.sum())
     plt.scatter(
         cluster[1][binar_msk], cluster[0][binar_msk], marker='x', s=25, c='r',
         lw=.8, alpha=.5, label="Binary (N={}) | b_fr={:.2f}".format(
             binar_msk.sum(), b_fr))
     plt.gca().invert_yaxis()
+    plt.grid()
     plt.ylabel(r"$G$")
     plt.xlabel(r"$BP-RP$")
     plt.legend(loc=3)
 
-    ax = plt.subplot(GS[1])
+    ax = plt.subplot(GS[3])
     t1 = 'Single systems {:.0f} '.format(single_masses.sum()) + r"$M_{\odot}$"
     t2 = "\n[{:.2f}, {:.2f}] ".format(
         single_masses.min(), single_masses.max()) + r"$M_{\odot}$"
@@ -44,102 +73,98 @@ def CMD(
          alpha=0.7, color='red', label='Binary systems (M2) {:.0f} '.format(
              sum(m2_mass)) + r"$M_{\odot}$", ls='-', lw=2, density=True)
     plt.legend(loc=9)
-
-    plt.legend(loc=9)
     ax.set_yscale('log')
     plt.xlabel(r"$Mass\;(M_{\odot})$")
 
-    # ax = plt.subplot(GS[2])
-
-
-    fig.tight_layout()
-
-    plt.savefig(
-        "out/zaed_{}_{}.png".format(clust_name, str(thresh).split('.')[1]),
-        dpi=150, bbox_inches='tight')
-
-
-def final(
-    thresh, method, clust_name, cluster, tot_single_mass_all,
-    tot_binar_mass_all, total_mass_all, binar_fr_all, m1_all, m2_all, G_binars,
-        qvals, Gobs_s, Gobs_b):
-    """
-    """
-    fig = plt.figure(figsize=(20, 20))
-    GS = gridspec.GridSpec(3, 3)
-
-    def histplot(ax, data, _mean, bins='knuth'):
-        _16, _84 = np.percentile(data, (16, 84))
-        # plt.hist(data, 100, color='grey')
-        hist(data, bins=bins, ax=ax, histtype='stepfilled', alpha=0.4)
-        plt.axvline(_16, c='r', ls=':', label="16p ({:.0f})".format(_16))
-        plt.axvline(_84, c='r', ls=':', label="84p ({:.0f})".format(_84))
-        plt.axvline(_mean, c='g', ls=':', label="Mean ({:.0f})".format(_mean))
-        plt.legend()
-        plt.xlabel(r"$Mass\;(M_{\odot})$")
-
-    ax = plt.subplot(GS[0])
-    _mean, _std = tot_single_mass_all.mean(), tot_single_mass_all.std()
-    plt.title(r"Single systems: ${:.0f}\pm{:.0f}$ (N={})".format(
-        _mean, _std, len(tot_single_mass_all)))
-    histplot(ax, tot_single_mass_all, _mean)
-
-    if method == '1':
-        ax = plt.subplot(GS[1])
-        _mean, _std = tot_binar_mass_all.mean(), tot_binar_mass_all.std()
-        plt.title(r"Binary systems: ${:.0f}\pm{:.0f}$ (N={})".format(
-            _mean, _std, len(tot_binar_mass_all)))
-        histplot(ax, tot_binar_mass_all, _mean)
-
-    ax = plt.subplot(GS[2])
-    _mean, _std = total_mass_all.mean(), total_mass_all.std()
-    plt.title(r"Single+binary systems: ${:.0f}\pm{:.0f}$ (N={})".format(
-        _mean, _std, len(total_mass_all)))
-    histplot(ax, total_mass_all, _mean)
-
-    ax = plt.subplot(GS[3])
-    plt.title("N={}".format(len(binar_fr_all)))
-    hist(binar_fr_all, bins='knuth', ax=ax, histtype='stepfilled', alpha=0.4,
-         density=True)
-    _mean = np.mean(binar_fr_all)
-    plt.axvline(_mean, c='g', ls=':', label="Mean ({:.2f})".format(_mean))
-    plt.legend()
-    plt.xlabel(r"$b_fr$")
-
     ax = plt.subplot(GS[4])
-    q = np.array(m2_all) / np.array(m1_all)
+    q = m2_mass / m1_mass
     plt.title("N={}".format(len(q)))
     hist(q, bins=10, ax=ax, histtype='stepfilled', alpha=0.4,
          density=True)
     plt.xlabel(r"$q\;(m2/m1)$")
 
+    # def histplot(ax, data, _mean, bins='knuth'):
+    #     _16, _84 = np.percentile(data, (16, 84))
+    #     # plt.hist(data, 100, color='grey')
+    #     hist(data, bins=bins, ax=ax, histtype='stepfilled', alpha=0.4)
+    #     plt.axvline(_16, c='r', ls=':', label="16p ({:.0f})".format(_16))
+    #     plt.axvline(_84, c='r', ls=':', label="84p ({:.0f})".format(_84))
+    #     plt.axvline(_mean, c='g', ls=':', label="Mean ({:.0f})".format(_mean))
+
     ax = plt.subplot(GS[5])
-    x_steps, yboxes = boxPlotArray(G_binars, qvals)
-    tcks = np.round(x_steps, 2)
-    boxPlot(ax, x_steps, yboxes, "ecc", "ecc", tcks)
-    plt.xlabel(r"$G$")
-    plt.ylabel(r"$q\;(m2/m1)$")
+    tot_mass = np.array(list(tot_mass_1) + list(tot_mass_2) + list(tot_mass_3))
+    _mean, _std = tot_mass.mean(), tot_mass.std()
+    plt.title(r"Single+binary systems: ${:.0f}\pm{:.0f}$".format(_mean, _std))
+    _16, _84 = np.percentile(tot_mass, (16, 84))
+    plt.axvline(_16, c='k', ls=':', lw=3)
+    plt.axvline(_84, c='k', ls=':', lw=3)
+    plt.axvline(_mean, c='k', ls='-', lw=3)
+    # M1
+    _mean, _std = tot_mass_1.mean(), tot_mass_1.std()
+    hist(tot_mass_1, bins='knuth', ax=ax, histtype='stepfilled', alpha=0.2,
+         color='g', label=r"M1: ${:.0f}\pm{:.0f}$".format(_mean, _std))
+    # M2
+    _mean, _std = tot_mass_2.mean(), tot_mass_2.std()
+    hist(tot_mass_2, bins='knuth', ax=ax, histtype='stepfilled', alpha=0.2,
+         color='r', label=r"M2: ${:.0f}\pm{:.0f}$".format(_mean, _std))
+    # M3
+    _mean, _std = tot_mass_3.mean(), tot_mass_3.std()
+    hist(tot_mass_3, bins='knuth', ax=ax, histtype='stepfilled', alpha=0.2,
+         color='b', label=r"M3: ${:.0f}\pm{:.0f}$".format(_mean, _std))
+    plt.legend()
+    plt.xlabel(r"$Mass\;(M_{\odot})$")
 
-    ax = plt.subplot(GS[7])
-    Gobs = cluster[0, :]
-    rmin, rmax = min(Gobs), max(Gobs)
-    bfr_vals, step = [], 3
-    _range = np.arange(rmin, rmax, step)
-    for i, ra in enumerate(_range):
-        msk_s = (Gobs_s >= ra) & (Gobs_s < _range[i] + step)
-        msk_b = (Gobs_b >= ra) & (Gobs_b < _range[i] + step)
-        bfr_vals.append(msk_b.sum() / msk_s.sum())
-    Ggrid = list(.5 * (_range[1:] + _range[:-1])) + [_range[-1] + .5 * step]
+    # ax = plt.subplot(GS[6])
+    # _mean, _std = np.mean(tot_single_mass_1), np.mean(tot_single_mass_1)
+    # plt.title(r"Single systems: ${:.0f}\pm{:.0f}$ (N={})".format(
+    #     _mean, _std, len(tot_single_mass_1)))
+    # histplot(ax, tot_single_mass_1, _mean)
 
-    plt.bar(Ggrid, bfr_vals)
-    plt.xlabel(r"$G$")
-    plt.ylabel(r"$b_fr$")
+    # ax = plt.subplot(GS[7])
+    # _mean, _std = np.mean(tot_binar_mass), np.mean(tot_binar_mass)
+    # plt.title(r"Binary systems: ${:.0f}\pm{:.0f}$ (N={})".format(
+    #     _mean, _std, len(tot_binar_mass)))
+    # histplot(ax, tot_binar_mass, _mean)
+
+    # ax = plt.subplot(GS[8])
+    # total_mass = tot_single_mass_1 + tot_binar_mass
+    # _mean, _std = np.mean(total_mass), np.mean(total_mass)
+    # plt.title(r"Single+binary systems (1): ${:.0f}\pm{:.0f}$ (N={})".format(
+    #     _mean, _std, len(total_mass)))
+    # histplot(ax, total_mass, _mean)
+
+    # ax = plt.subplot(GS[11])
+    # total_mass = tot_single_mass_3
+    # _mean, _std = np.mean(total_mass), np.mean(total_mass)
+    # plt.title(r"Single+binary systems (3): ${:.0f}\pm{:.0f}$ (N={})".format(
+    #     _mean, _std, len(total_mass)))
+    # histplot(ax, total_mass, _mean)
+
+    # ax = plt.subplot(GS[5])
+    # x_steps, yboxes = boxPlotArray(G_binars, qvals)
+    # tcks = np.round(x_steps, 2)
+    # boxPlot(ax, x_steps, yboxes, "ecc", "ecc", tcks)
+    # plt.xlabel(r"$G$")
+    # plt.ylabel(r"$q\;(m2/m1)$")
+
+    # ax = plt.subplot(GS[7])
+    # Gobs = cluster[0, :]
+    # rmin, rmax = min(Gobs), max(Gobs)
+    # bfr_vals, step = [], 3
+    # _range = np.arange(rmin, rmax, step)
+    # for i, ra in enumerate(_range):
+    #     msk_s = (Gobs_s >= ra) & (Gobs_s < _range[i] + step)
+    #     msk_b = (Gobs_b >= ra) & (Gobs_b < _range[i] + step)
+    #     bfr_vals.append(msk_b.sum() / msk_s.sum())
+    # Ggrid = list(.5 * (_range[1:] + _range[:-1])) + [_range[-1] + .5 * step]
+
+    # plt.bar(Ggrid, bfr_vals)
+    # plt.xlabel(r"$G$")
+    # plt.ylabel(r"$b_fr$")
 
     fig.tight_layout()
-    plt.savefig(
-        "out/{}_{}_{}.png".format(
-            clust_name, method, str(thresh).split('.')[1]), dpi=150,
-        bbox_inches='tight')
+    plt.savefig("out/{}_{}.png".format(clust_name, splitmethod), dpi=150,
+                bbox_inches='tight')
 
 
 def boxPlotArray(xvals, yvals, step=2):

@@ -2,10 +2,10 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.optimize import differential_evolution
-import sys
+# import sys
 
 
-def split(cluster, isoch_interp, mass_ini, thresh, turn_off):
+def split(cluster, isoch_interp, thresh, turn_off):
     """
     Classify single/binary systems, making sure that systems
     classified as 'binaries' are located to the *right* of the isochrone
@@ -16,9 +16,20 @@ def split(cluster, isoch_interp, mass_ini, thresh, turn_off):
     min_dist = distances.min(1)
     # Indexes in 'isoch_interp' for each observed star
     idxs_min_dist = np.argmin(distances, 1)
+
     # All stars closer to the isochrone than 'thresh' are considered single
     # systems
-    msk1 = min_dist < thresh
+
+    print("FINISH THIS")
+    # There's a 'belly' in the isochrones in the range G=[15, 17] that makes
+    # many stars be counted as binaries when they are visibly not. We handle
+    # this by increasing the 'thresh' N_mult times in this range.
+    N_mult = 5
+    new_thresh = np.ones(cluster.shape[-1]) * thresh
+    msk_mag = (cluster[0] > 15.) & (cluster[0] < 17.)
+    new_thresh[msk_mag] = N_mult * thresh
+    msk1 = min_dist < new_thresh
+    # msk1 = min_dist < thresh
 
     # Closest synthetic stars to observed stars
     synth_stars = isoch_interp[:, idxs_min_dist]
@@ -30,16 +41,67 @@ def split(cluster, isoch_interp, mass_ini, thresh, turn_off):
     msk3 = msk2 & (cluster[0, :] > turn_off)
 
     # Combine with an OR
-    msk = msk1 | msk3
-    single_msk, binar_msk = msk, ~msk
+    single_msk = msk1 | msk3
+    binar_msk = ~single_msk
 
-    b_fr = binar_msk.sum() / (single_msk.sum() + binar_msk.sum())
-    single_masses = mass_ini[idxs_min_dist][single_msk]
-
-    return single_msk, binar_msk, single_masses, b_fr
+    return single_msk, binar_msk
 
 
-def binarMasses(isoch_phot, isoch_col_mags, mass_ini, cluster, binar_msk):
+def splitEnv(
+        cluster, thresh, col_min=-.15, col_max=3.2, col_step=.05, perc=70):
+    """
+    """
+    from modules import isochHandle
+    xx_yy = []
+    for low in np.arange(col_min, col_max, col_step):
+        msk = (cluster[1] > low) & (cluster[1] <= low + col_step)
+        if msk.sum() > 0:
+            xx_yy.append([np.percentile(cluster[0][msk], perc), low])
+
+    envelope = isochHandle.interp(np.array(xx_yy).T)
+
+    distances = cdist(cluster.T, envelope.T)
+    min_dist = distances.min(1)
+    idxs_min_dist = np.argmin(distances, 1)
+    msk1 = min_dist < thresh
+
+    # Closest synthetic stars to observed stars
+    synth_stars = envelope[:, idxs_min_dist]
+    # Color distance
+    left_right = cluster[1, :] - synth_stars[1, :]
+    # All stars with negative values are considered single systems
+    msk2 = left_right < 0.
+
+    single_msk = msk1 | msk2
+    binar_msk = ~single_msk
+
+    # import matplotlib.pyplot as plt
+    # plt.scatter(cluster[1][single_msk], cluster[0][single_msk], marker='.', c='g')
+    # plt.scatter(cluster[1][binar_msk], cluster[0][binar_msk], marker='.', c='r')
+    # plt.plot(envelope[1], envelope[0], '.', ms=2, c='k')
+    # plt.gca().invert_yaxis()
+    # plt.show()
+
+    return envelope, single_msk, binar_msk
+
+
+def singleMasses(cluster, mass_ini, isoch_interp, single_msk):
+    """
+    Return the masses for single systems identified as such
+    """
+    distances = cdist(cluster.T, isoch_interp.T)
+    # Indexes in 'isoch_interp' for each observed star
+    idxs_min_dist = np.argmin(distances, 1)
+
+    single_masses = np.zeros(cluster.shape[-1])
+    single_masses[single_msk] = mass_ini[idxs_min_dist][single_msk]
+    # For non-single systems, save 'nan'
+    single_masses[~single_msk] = np.nan
+
+    return single_masses
+
+
+def binarMasses(isoch_phot, isoch_col_mags, mass_ini, cluster, binar_systs):
     """
     Given a system identified as a binary, estimate its masses.
     """
@@ -81,11 +143,13 @@ def binarMasses(isoch_phot, isoch_col_mags, mass_ini, cluster, binar_msk):
         if plot_flag:
             return Gmag_s1, Gmag_s2, BPmag_1, RPmag_1, BPmag_2, RPmag_2,\
                 mag_binar, col_binar
-        return np.sqrt((mag_binar - mag_obs)**2 + (col_binar - col_obs)**2)
+
+        # Don't take the square root, it's not necessary
+        return (mag_binar - mag_obs)**2 + (col_binar - col_obs)**2
 
     m1_mass, m2_mass, res = [], [], []
     # Ntotal = cluster.shape[-1]
-    for i, bin_phot in enumerate(cluster[:, binar_msk].T):
+    for i, bin_phot in enumerate(binar_systs):
         mag, col = bin_phot
         mag_range = (mag, mag + 1.)
         bounds = ((mag_range), (0., 1.))
@@ -116,7 +180,7 @@ def binarMasses(isoch_phot, isoch_col_mags, mass_ini, cluster, binar_msk):
         # print(mag, col, m1, q, result.fun)
         # plotres(mag1, q)
 
-    return m1_mass, m2_mass, res
+    return np.array(m1_mass), np.array(m2_mass), res
 
 
 def mag_combine(m1, m2):
@@ -134,19 +198,19 @@ def mag_combine(m1, m2):
     return mbin
 
 
-def updt(total, progress, extra=""):
-    """
-    Displays or updates a console progress bar.
+# def updt(total, progress, extra=""):
+#     """
+#     Displays or updates a console progress bar.
 
-    Original source: https://stackoverflow.com/a/15860757/1391441
-    """
-    barLength, status = 20, ""
-    progress = float(progress) / float(total)
-    if progress >= 1.:
-        progress, status = 1, "\r\n"
-    block = int(round(barLength * progress))
-    text = "\r[{}] {:.0f}% {}{}".format(
-        "#" * block + "-" * (barLength - block),
-        round(progress * 100, 0), extra, status)
-    sys.stdout.write(text)
-    sys.stdout.flush()
+#     Original source: https://stackoverflow.com/a/15860757/1391441
+#     """
+#     barLength, status = 20, ""
+#     progress = float(progress) / float(total)
+#     if progress >= 1.:
+#         progress, status = 1, "\r\n"
+#     block = int(round(barLength * progress))
+#     text = "\r[{}] {:.0f}% {}{}".format(
+#         "#" * block + "-" * (barLength - block),
+#         round(progress * 100, 0), extra, status)
+#     sys.stdout.write(text)
+#     sys.stdout.flush()
