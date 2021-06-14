@@ -24,14 +24,9 @@ def main():
 
     print("\nSplit single/binary systems method: {}".format(splitmethod))
 
-    # Use my own IMF sampling
     print("\nGenerating CDF for '{}' IMF (M_max={})...".format(
         IMF_name, Max_mass))
     inv_cdf = totalMass.IMF_CDF(IMF_name, Max_mass)
-    # # Use MASSCLEAN
-    # print("Generating CDF from MASSCLEAN file (M_max={})...".format(
-    #     Max_mass))
-    # inv_cdf = CDF_MASSCLEAN(Max_mass)
 
     print("\nIdentifying single/binary systems")
     envelope, single_msk, binar_msk, binar_probs, single_masses,\
@@ -114,126 +109,6 @@ def totMass(
         tot_mass_3.mean(), tot_mass_3.std()))
 
     return tot_mass_1, tot_mass_2, tot_mass_3
-
-
-def CDF_MASSCLEAN(Max_mass):
-    """
-    Use MASSCLEAN's 'goimf2' to generate a file with mass sampled in small
-    steps until a total mass is generated
-    """
-    import subprocess
-    from astropy.io import ascii
-    from astropy.stats import bayesian_blocks
-    from scipy import stats
-
-    Max_mass = 10000
-
-    # Define IMF parameters in imf.ini file.
-    # IMPORTANT: (5) is the minimum mass sampled from the IMF. By default this
-    # is set to 0.15 because: "this is the lower limit of Padova models"
-    # (Bogdan,private email). This must be lowered to 0.01 (the lower limit
-    # of the IMF) otherwise mass is lost.
-    # "about half of the mass lies in the 0.01-0.15 M_Sun range", Bogdan
-    ini_file = """0.01       (1)
-0.08       (2)
-0.50       (3)
-500.0      (4)
-0.01       (5)
-150        (6)
--99        (7)
-0.3        (8)
-1.3        (9)
-2.35      (10)
-1         (11)
-"""
-    with open("ini.files/imf.ini", "w") as f:
-        f.write(ini_file)
-
-    # Define total mass in cluster.ini file
-    ini_file = """0       (1)
-{}    (2)
-10    (3)
-10    (4)
-2048    (5)
-2048    (6)
-2048   (7)
-2048   (8)
-1       (9)
-3.1    (10)
-0.0    (11)
-0.0    (12)
-0.    (13)
-0.0    (14)
-0.0    (15)
-0.0    (16)
-0.0    (17)
-0.0    (18)
-0      (19)
-0      (20)
-0      (21)
-0      (22)
-0      (23)
-    """.format(Max_mass)
-    with open("ini.files/cluster.ini", "w") as f:
-        f.write(ini_file)
-    # Call 'goimf2'
-    bashCommand = "./goimf2"
-    subprocess.call(bashCommand, stdout=subprocess.PIPE)
-
-    # Read IMF
-    sampled_imf = np.array(ascii.read(
-        "n_distribution.out", format="no_header")['col1'])
-    print("MASSCLEAN mass:", sampled_imf.sum())
-    # sampled_imf = sampled_imf[sampled_imf < 1.]
-
-    # pk, xk = bayesian_blocks(sampled_imf)
-    import matplotlib.pyplot as plt
-    plt.title("Kroupa (alpha: 0.3, 1.3, 2.3), M={:.0f}".format(Max_mass))
-
-    inv_cdf = totalMass.IMF_CDF('kroupa_2002', Max_mass)
-    my_IMF, cumm_mass = totalMass.getIMF(Max_mass, inv_cdf)
-    print("My mass:", my_IMF.sum())
-    # my_IMF = my_IMF[my_IMF < 1.]
-
-    sampled_imf.sort()
-    plt.plot(sampled_imf, np.cumsum(sampled_imf), c='r', label="goimf2")
-    my_IMF.sort()
-    plt.plot(my_IMF, np.cumsum(my_IMF), c='g', label="my sampling")
-
-    # n, bins, _ = plt.hist(my_IMF, 50, color='g', alpha=.85,
-    #     label='my sampling')
-    # # [0.01] + 
-    # plt.hist(
-    #     sampled_imf, list(bins), color='r', histtype='step', lw=2,
-    #     label="goimf2")
-
-    # plt.xscale('log')
-    # plt.yscale('log')
-    plt.legend()
-    plt.show()
-
-    import pdb; pdb.set_trace()  # breakpoint 611fb2ff //
-
-
-    pk, xk = np.histogram(sampled_imf, Max_mass)
-    # xk = np.arange(pk.size)
-    pk = 1. * pk
-    pk /= pk.sum()
-    fq = stats.rv_discrete(values=(xk[:-1], pk))
-    # Inverse CDF
-    # inv_cdf = fq.ppf
-    dist = fq.ppf(np.random.uniform(0., 1., 100000))
-    dist = dist[dist < .5]
-
-    plt.hist(dist, 100, histtype='step')
-    # fig, ax = plt.subplots(1, 1)
-    # ax.plot(xk, fq.pmf(xk), 'ro', ms=12, mec='r')
-    # ax.vlines(xk, 0, fq.pmf(xk), colors='r', lw=4)
-    plt.show()
-    import pdb; pdb.set_trace()  # breakpoint 6b7b57eb //
-
-
-    return inv_cdf
 
 
 if __name__ == '__main__':
