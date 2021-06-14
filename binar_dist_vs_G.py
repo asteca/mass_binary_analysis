@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 
 def main(Gmag, BPmag, RPmag, mini):
     """
+    Distance of binary systems to a given isochrone. The plot shows systems
+    of different q values, and at different points in the mains sequence.
     """
     isoch = np.array([Gmag, BPmag, RPmag, BPmag - RPmag, mini])
     isoch = interp(isoch)
