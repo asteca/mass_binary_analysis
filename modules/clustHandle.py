@@ -2,6 +2,7 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.optimize import differential_evolution
+from modules import isochHandle
 # import sys
 
 
@@ -21,7 +22,7 @@ def split(cluster, isoch_interp, thresh, turn_off):
     # systems
 
     print("FINISH THIS")
-    # There's a 'belly' in the isochrones in the range G=[15, 17] that makes
+    # There's a 'dip' in the isochrones in the range G=[15, 17] that makes
     # many stars be counted as binaries when they are visibly not. We handle
     # this by increasing the 'thresh' N_mult times in this range.
     N_mult = 5
@@ -48,36 +49,51 @@ def split(cluster, isoch_interp, thresh, turn_off):
 
 
 def splitEnv(
-        cluster, thresh, col_min=-.15, col_max=3.2, col_step=.05, perc=70):
+        cluster, thresh, col_step=.05, perc=75):
     """
+
+    col_step: the step used in the in color to generate the envelope. Of
+      minor importance as the envelope is then interpolated.
+
+    perc: the magnitude percentile used to estimate the 'y' position of the
+      envelope. A smaller value brings the envelope upwards in the CMD (i.e.:
+      towards brighter magnitudes). The value of 75 is estimated heuristically
+      and gives reasonable results.
     """
-    from modules import isochHandle
+
+    # Obtain the lower envelope for the cluster's sequence
+    col_min, col_max = cluster[1].min(), cluster[1].max()
     xx_yy = []
     for low in np.arange(col_min, col_max, col_step):
         msk = (cluster[1] > low) & (cluster[1] <= low + col_step)
         if msk.sum() > 0:
             xx_yy.append([np.percentile(cluster[0][msk], perc), low])
-
+    # Generate extra points
     envelope = isochHandle.interp(np.array(xx_yy).T)
 
+    # Distances to the envelope, for all the stars
     distances = cdist(cluster.T, envelope.T)
     min_dist = distances.min(1)
     idxs_min_dist = np.argmin(distances, 1)
+    # Identify those closer to the envelope than the 'thresh' parameter
     msk1 = min_dist < thresh
 
-    # Closest synthetic stars to observed stars
+    # Closest 'synthetic stars' (envelope points) to observed stars
     synth_stars = envelope[:, idxs_min_dist]
     # Color distance
     left_right = cluster[1, :] - synth_stars[1, :]
     # All stars with negative values are considered single systems
     msk2 = left_right < 0.
 
+    # Split systems
     single_msk = msk1 | msk2
     binar_msk = ~single_msk
 
     # import matplotlib.pyplot as plt
-    # plt.scatter(cluster[1][single_msk], cluster[0][single_msk], marker='.', c='g')
-    # plt.scatter(cluster[1][binar_msk], cluster[0][binar_msk], marker='.', c='r')
+    # plt.scatter(
+    #     cluster[1][single_msk], cluster[0][single_msk], marker='.', c='g')
+    # plt.scatter(
+    #     cluster[1][binar_msk], cluster[0][binar_msk], marker='.', c='r')
     # plt.plot(envelope[1], envelope[0], '.', ms=2, c='k')
     # plt.gca().invert_yaxis()
     # plt.show()

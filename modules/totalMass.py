@@ -71,6 +71,7 @@ def get(
 
 def IMF_CDF(IMF_name, Max_mass):
     """
+    Generate the inverse CDF for the selected IMF.
     """
 
     # IMF low mass limit.

@@ -4,14 +4,11 @@ import numpy as np
 from numpy.random import MT19937, RandomState, SeedSequence
 from modules import readData, binary, totalMass, makePlots
 
-seed = np.random.randint(100000000)
-print("Random seed: {}".format(seed))
-RandomState(MT19937(SeedSequence(seed)))
-
 
 def main():
     """
     """
+
     clust_name, gaia_ID, met_l, age_l, ext_l, dist_l, Nvals, best_pars,\
         thresh_binar, binar_P_thresh, splitmethod, IMF_name, Max_mass,\
         N_mass_tot, bins_list = readData.readINI()
@@ -112,6 +109,11 @@ def totMass(
 
 
 if __name__ == '__main__':
+    # Set random seed
+    seed = np.random.randint(100000000)
+    print("Random seed: {}".format(seed))
+    RandomState(MT19937(SeedSequence(seed)))
+
     out_folder = "out"
     # Create 'output' folder if it does not exist
     Path('./{}'.format(out_folder)).mkdir(parents=True, exist_ok=True)

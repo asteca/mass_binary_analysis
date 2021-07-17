@@ -3,25 +3,15 @@ import warnings
 from itertools import product
 import numpy as np
 from modules import isochHandle, clustHandle
-
-
-# HARDCODED: only Gaia EDR3 and Gaia DR2 photometric systems are supported
-cmd_systs = {
-    'gaiadr2': (
-        ('Gmag', 'G_BPmag', 'G_RPmag'), (6437.7, 5309.57, 7709.85)),
-    'gaiaedr3': (
-        ('Gmag', 'G_BPmag', 'G_RPmag'), (6422.01, 5335.42, 7739.17))
-}
-# line where the header starts in the CMD isochrone files
-idx_header = 11
+from .HARDCODED import cmd_systs, idx_header
 
 
 def ID(
     cluster, gaia_ID, met_l, age_l, ext_l, dist_l, Nvals, thresh_binar,
         binar_P_thresh, splitmethod):
     """
+    Assign probabilities for each star of being a single or binary system.
     """
-    binar_fr_all, single_systs, single_masses_all = [], [], []
 
     envelope = []
     if splitmethod == "envelope":
@@ -34,6 +24,7 @@ def ID(
 
     params = list(product(*(met_l, age_l, ext_l, dist_l)))
     Ntot = len(params)
+    binar_fr_all, single_systs, single_masses_all = [], [], []
     for pi, (met, age, ext, dist) in enumerate(params):
         print("{}/{}. {}, {}, {}, {}".format(
             pi + 1, Ntot, met, age, ext, dist))
