@@ -4,7 +4,7 @@ from . import extin_coefs
 from . import readData
 
 
-def isochProcess(gaia_ID, cmd_systs, idx_header, met, age, ext, dist):
+def isochProcess(cmd_systs, idx_header, met, age, ext, dist):
     """
     Load the corresponding isochrone, move it, interpolate it, and return
     the required arrays.
@@ -15,7 +15,7 @@ def isochProcess(gaia_ID, cmd_systs, idx_header, met, age, ext, dist):
 
     # Move isochrone.
     turn_off += dist
-    isoch_mv = move(gaia_ID, cmd_systs, isoch, ext, dist)
+    isoch_mv = move(cmd_systs, isoch, ext, dist)
 
     # Interpolate extra points
     isoch_interp = interp(np.concatenate([isoch_mv, [isoch['Mini']]]))
@@ -30,11 +30,11 @@ def isochProcess(gaia_ID, cmd_systs, idx_header, met, age, ext, dist):
     return turn_off, isoch_phot, mass_ini, isoch_col_mags
 
 
-def move(gaia_ID, cmd_systs, isoch, ext, dist, R_V=3.1):
+def move(cmd_systs, isoch, ext, dist, R_V=3.1):
     """
     """
     # Extinction coefficients defined for the Gaia EDR3 system
-    ext_coefs = extin_coefs.main(gaia_ID, cmd_systs)
+    ext_coefs = extin_coefs.main(cmd_systs)
 
     isochrone = (
         isoch['Gmag'], isoch['G_BPmag'], isoch['G_RPmag'],

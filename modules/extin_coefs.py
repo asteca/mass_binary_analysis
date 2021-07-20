@@ -2,7 +2,7 @@
 import numpy as np
 
 
-def main(gaia_ID, cmd_systs):
+def main(cmd_systs, gaia_ID='gaiaedr3'):
     """
     Obtain extinction coefficients for all the observed filters and colors,
     in the order in which they are stored in theor_tracks.
