@@ -14,20 +14,7 @@ def readINI():
 
     clust_pars = in_params['Cluster parameters']
     clust_name = clust_pars['name']
-    gaia_ID = clust_pars['gaia_ID']
-    met_l = list(map(float, clust_pars['met'].split()))
-    age_l = list(map(float, clust_pars['age'].split()))
-    ext_l = list(map(float, clust_pars['ext'].split()))
-    dist_l = list(map(float, clust_pars['dist'].split()))
-    Nvals = clust_pars.getint('Nvals')
     best_pars = list(map(float, clust_pars['best_pars'].split()))
-
-    binar_id = in_params['Binary ID']
-    thresh_binar = binar_id.getfloat('thresh_binar')
-    splitmethod = binar_id.get('splitmethod')
-    if splitmethod not in ("envelope", "isochs"):
-        raise ValueError("splitmethod '{}' not recognized".format(splitmethod))
-    binar_P_thresh = binar_id.getfloat('binar_P_thresh')
 
     imf_pars = in_params['IMF parameters']
     IMF_name = imf_pars.get('IMF_name')
@@ -35,9 +22,7 @@ def readINI():
     N_mass_tot = imf_pars.getint('N_mass_tot')
     bins_list = list(map(int, imf_pars['bins_list'].split()))
 
-    return clust_name, gaia_ID, met_l, age_l, ext_l, dist_l, Nvals, best_pars,\
-        thresh_binar, binar_P_thresh, splitmethod, IMF_name, Max_mass,\
-        N_mass_tot, bins_list
+    return clust_name, best_pars, IMF_name, Max_mass, N_mass_tot, bins_list
 
 
 def loadClust(clust_name, max_e=0.3):
@@ -81,6 +66,11 @@ def loadIsoch(idx_header, met, age, MS_end_ID=2):
 
     msk = isoch[logAge_name] == age
     isoch = isoch[msk]
+
+    # Remove TPAGB and post-AGB phases
+    msk = (isoch['label'] == 8) | (isoch['label'] == 9)
+    isoch = isoch[~msk]
+    print("TPAGB and post-AGB phases removed from isochrone")
 
     # Identify the turn-off point
     idx = np.searchsorted(isoch[label_name], MS_end_ID)

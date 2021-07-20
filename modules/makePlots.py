@@ -6,44 +6,40 @@ from astropy.visualization import hist
 
 
 def final(
-    clust_name, cluster, best_pars, isoch_phot, envelope, single_msk, binar_msk,
-    binar_probs, binar_P_thresh, splitmethod, single_masses, binar_fr_all,
-        m1_mass, m2_mass, tot_mass_1, tot_mass_2, tot_mass_3):
+    clust_name, cluster, best_pars, isoch_phot_best, envelopes, single_msk,
+    binar_msk, single_masses, m1_mass, m2_mass, tot_mass_1, tot_mass_2,
+        tot_mass_3):
     """
     """
-    fig = plt.figure(figsize=(20, 20))
-    GS = gridspec.GridSpec(3, 3)
+    fig = plt.figure(figsize=(15, 15))
+    GS = gridspec.GridSpec(2, 2)
+
+    # ax = plt.subplot(GS[0])
+    # plt.title("N={}".format(len(binar_fr_all)))
+    # hist(binar_fr_all, bins=20, ax=ax, histtype='stepfilled', alpha=0.4,
+    #      density=True)
+    # _mean, _std = np.mean(binar_fr_all), np.std(binar_fr_all)
+    # _16, _84 = np.percentile(binar_fr_all, (16, 84))
+    # plt.axvline(_mean, c='g', ls=':', label="Mean ({:.2f} +/- {:.2f})".format(
+    #     _mean, _std))
+    # plt.axvline(_16, c='r', ls=':', label="16p ({:.2f})".format(_16))
+    # plt.axvline(_84, c='r', ls=':', label="84p ({:.2f})".format(_84))
+    # plt.legend()
+    # plt.xlabel(r"$b_fr$")
+
+    # ax = plt.subplot(GS[1])
+    # # hist(binar_probs, bins='knuth', ax=ax, histtype='stepfilled', alpha=0.4,
+    # #      density=True)
+    # plt.hist(binar_probs, histtype='stepfilled', alpha=0.4, density=True)
+    # plt.axvline(binar_P_thresh, c='r', ls=':', label="P_thresh= {:.2f}".format(
+    #     binar_P_thresh))
+    # plt.xlabel(r"$P_{binar}$")
+    # plt.legend()
 
     ax = plt.subplot(GS[0])
-    plt.title("N={}".format(len(binar_fr_all)))
-    hist(binar_fr_all, bins=20, ax=ax, histtype='stepfilled', alpha=0.4,
-         density=True)
-    _mean, _std = np.mean(binar_fr_all), np.std(binar_fr_all)
-    _16, _84 = np.percentile(binar_fr_all, (16, 84))
-    plt.axvline(_mean, c='g', ls=':', label="Mean ({:.2f} +/- {:.2f})".format(
-        _mean, _std))
-    plt.axvline(_16, c='r', ls=':', label="16p ({:.2f})".format(_16))
-    plt.axvline(_84, c='r', ls=':', label="84p ({:.2f})".format(_84))
-    plt.legend()
-    plt.xlabel(r"$b_fr$")
-
-    ax = plt.subplot(GS[1])
-    # hist(binar_probs, bins='knuth', ax=ax, histtype='stepfilled', alpha=0.4,
-    #      density=True)
-    plt.hist(binar_probs, histtype='stepfilled', alpha=0.4, density=True)
-    plt.axvline(binar_P_thresh, c='r', ls=':', label="P_thresh= {:.2f}".format(
-        binar_P_thresh))
-    plt.xlabel(r"$P_{binar}$")
-    plt.legend()
-
-    ax = plt.subplot(GS[2])
     ax.minorticks_on()
-    if splitmethod == 'isochs':
-        plt.plot(
-            isoch_phot[1], isoch_phot[0], c='k',
-            label="({:.5f}, {:.2f}, {:.2f}, {:.2f})".format(*best_pars))
-    elif splitmethod == 'envelope':
-        plt.plot(envelope[1], envelope[0], c='k', label="Lower envelope")
+    plt.plot(envelopes[0][1], envelopes[0][0], c='k', label="Lower envelope")
+    plt.plot(envelopes[1][1], envelopes[1][0], c='k', label="Binary envelope")
 
     plt.scatter(
         cluster[1][single_msk], cluster[0][single_msk], s=20,
@@ -60,7 +56,7 @@ def final(
     plt.xlabel(r"$BP-RP$")
     plt.legend(loc=3)
 
-    ax = plt.subplot(GS[3])
+    ax = plt.subplot(GS[1])
     t1 = 'Single systems {:.0f} '.format(single_masses.sum()) + r"$M_{\odot}$"
     t2 = "\n[{:.2f}, {:.2f}] ".format(
         single_masses.min(), single_masses.max()) + r"$M_{\odot}$"
@@ -76,7 +72,7 @@ def final(
     ax.set_yscale('log')
     plt.xlabel(r"$Mass\;(M_{\odot})$")
 
-    ax = plt.subplot(GS[4])
+    ax = plt.subplot(GS[2])
     q = m2_mass / m1_mass
     plt.title("N={}".format(len(q)))
     hist(q, bins=10, ax=ax, histtype='stepfilled', alpha=0.4,
@@ -91,7 +87,7 @@ def final(
     #     plt.axvline(_84, c='r', ls=':', label="84p ({:.0f})".format(_84))
     #     plt.axvline(_mean, c='g', ls=':', label="Mean ({:.0f})".format(_mean))
 
-    ax = plt.subplot(GS[5])
+    ax = plt.subplot(GS[3])
     tot_mass = np.array(list(tot_mass_1) + list(tot_mass_2) + list(tot_mass_3))
     _mean, _std = tot_mass.mean(), tot_mass.std()
     plt.title(r"Single+binary systems: ${:.0f}\pm{:.0f}$".format(_mean, _std))
@@ -163,8 +159,7 @@ def final(
     # plt.ylabel(r"$b_fr$")
 
     fig.tight_layout()
-    plt.savefig("out/{}_{}.png".format(clust_name, splitmethod), dpi=150,
-                bbox_inches='tight')
+    plt.savefig("out/{}.png".format(clust_name), dpi=150, bbox_inches='tight')
 
 
 def boxPlotArray(xvals, yvals, step=2):

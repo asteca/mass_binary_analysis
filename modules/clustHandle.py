@@ -3,116 +3,29 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.optimize import differential_evolution
 from modules import isochHandle
-# import sys
+from .HARDCODED import cmd_systs, idx_header
 
 
-def split(cluster, isoch_interp, thresh, turn_off):
-    """
-    Classify single/binary systems, making sure that systems
-    classified as 'binaries' are located to the *right* of the isochrone
-    """
-
-    # Find the closest points in the isochrone for all the observed systems
-    distances = cdist(cluster.T, isoch_interp.T)
-    min_dist = distances.min(1)
-    # Indexes in 'isoch_interp' for each observed star
-    idxs_min_dist = np.argmin(distances, 1)
-
-    # All stars closer to the isochrone than 'thresh' are considered single
-    # systems
-
-    print("FINISH THIS")
-    # There's a 'dip' in the isochrones in the range G=[15, 17] that makes
-    # many stars be counted as binaries when they are visibly not. We handle
-    # this by increasing the 'thresh' N_mult times in this range.
-    N_mult = 5
-    new_thresh = np.ones(cluster.shape[-1]) * thresh
-    msk_mag = (cluster[0] > 15.) & (cluster[0] < 17.)
-    new_thresh[msk_mag] = N_mult * thresh
-    msk1 = min_dist < new_thresh
-    # msk1 = min_dist < thresh
-
-    # Closest synthetic stars to observed stars
-    synth_stars = isoch_interp[:, idxs_min_dist]
-    # Color distance
-    left_right = cluster[1, :] - synth_stars[1, :]
-    # All stars with negative values are considered single systems
-    msk2 = left_right < 0.
-    # But only if they are also below the estimated turn-off point
-    msk3 = msk2 & (cluster[0, :] > turn_off)
-
-    # Combine with an OR
-    single_msk = msk1 | msk3
-    binar_msk = ~single_msk
-
-    return single_msk, binar_msk
-
-
-def splitEnv(
-        cluster, thresh, col_step=.05, perc=75):
-    """
-
-    col_step: the step used in the in color to generate the envelope. Of
-      minor importance as the envelope is then interpolated.
-
-    perc: the magnitude percentile used to estimate the 'y' position of the
-      envelope. A smaller value brings the envelope upwards in the CMD (i.e.:
-      towards brighter magnitudes). The value of 75 is estimated heuristically
-      and gives reasonable results.
-    """
-
-    # Obtain the lower envelope for the cluster's sequence
-    col_min, col_max = cluster[1].min(), cluster[1].max()
-    xx_yy = []
-    for low in np.arange(col_min, col_max, col_step):
-        msk = (cluster[1] > low) & (cluster[1] <= low + col_step)
-        if msk.sum() > 0:
-            xx_yy.append([np.percentile(cluster[0][msk], perc), low])
-    # Generate extra points
-    envelope = isochHandle.interp(np.array(xx_yy).T)
-
-    # Distances to the envelope, for all the stars
-    distances = cdist(cluster.T, envelope.T)
-    min_dist = distances.min(1)
-    idxs_min_dist = np.argmin(distances, 1)
-    # Identify those closer to the envelope than the 'thresh' parameter
-    msk1 = min_dist < thresh
-
-    # Closest 'synthetic stars' (envelope points) to observed stars
-    synth_stars = envelope[:, idxs_min_dist]
-    # Color distance
-    left_right = cluster[1, :] - synth_stars[1, :]
-    # All stars with negative values are considered single systems
-    msk2 = left_right < 0.
-
-    # Split systems
-    single_msk = msk1 | msk2
-    binar_msk = ~single_msk
-
-    # import matplotlib.pyplot as plt
-    # plt.scatter(
-    #     cluster[1][single_msk], cluster[0][single_msk], marker='.', c='g')
-    # plt.scatter(
-    #     cluster[1][binar_msk], cluster[0][binar_msk], marker='.', c='r')
-    # plt.plot(envelope[1], envelope[0], '.', ms=2, c='k')
-    # plt.gca().invert_yaxis()
-    # plt.show()
-
-    return envelope, single_msk, binar_msk
-
-
-def singleMasses(cluster, mass_ini, isoch_interp, single_msk):
+def singleMasses(cluster, best_pars, single_msk):
     """
     Return the masses for single systems identified as such
     """
+    # Isochrone parameters
+    met, age, ext, dist = best_pars
+
+    # Read and process (met, age) isochrone
+    _, isoch_interp, mass_ini =\
+        isochHandle.isochProcess(
+            cmd_systs, idx_header, met, age, ext, dist)[:-1]
+
     distances = cdist(cluster.T, isoch_interp.T)
     # Indexes in 'isoch_interp' for each observed star
     idxs_min_dist = np.argmin(distances, 1)
 
-    single_masses = np.zeros(cluster.shape[-1])
-    single_masses[single_msk] = mass_ini[idxs_min_dist][single_msk]
-    # For non-single systems, save 'nan'
-    single_masses[~single_msk] = np.nan
+    # single_masses = np.zeros(cluster.shape[-1])
+    single_masses = mass_ini[idxs_min_dist][single_msk]
+    # # For non-single systems, save 'nan'
+    # single_masses[~single_msk] = np.nan
 
     return single_masses
 

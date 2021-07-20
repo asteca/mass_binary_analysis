@@ -2,16 +2,15 @@
 from pathlib import Path
 import numpy as np
 from numpy.random import MT19937, RandomState, SeedSequence
-from modules import readData, binary, totalMass, makePlots
+from modules import readData, totalMass, binary, clustHandle, makePlots
 
 
 def main():
     """
     """
 
-    clust_name, gaia_ID, met_l, age_l, ext_l, dist_l, Nvals, best_pars,\
-        thresh_binar, binar_P_thresh, splitmethod, IMF_name, Max_mass,\
-        N_mass_tot, bins_list = readData.readINI()
+    clust_name, best_pars, IMF_name, Max_mass, N_mass_tot, bins_list =\
+        readData.readINI()
 
     print("\n----------------------------------")
     print("Analyzing cluster: {}".format(clust_name))
@@ -19,27 +18,23 @@ def main():
     # Load observed cluster
     cluster = readData.loadClust(clust_name)
 
-    print("\nSplit single/binary systems method: {}".format(splitmethod))
-
     print("\nGenerating CDF for '{}' IMF (M_max={})...".format(
         IMF_name, Max_mass))
     inv_cdf = totalMass.IMF_CDF(IMF_name, Max_mass)
 
     print("\nIdentifying single/binary systems")
-    envelope, single_msk, binar_msk, binar_probs, single_masses,\
-        binar_fr_all = binary.ID(
-            cluster, gaia_ID, met_l, age_l, ext_l, dist_l, Nvals, thresh_binar,
-            binar_P_thresh, splitmethod)
-    print("\nBinary fraction: {:.2f}+/-{:.2f}".format(
-        np.mean(binar_fr_all), np.std(binar_fr_all)))
-    print("Binary fraction (P>{}): {:.2f}".format(
-        binar_P_thresh, binar_msk.sum() / cluster.shape[-1]))
+    envelopes, single_msk, binar_msk = binary.splitEnv(cluster, best_pars)
+
+    single_masses = clustHandle.singleMasses(cluster, best_pars, single_msk)
+
+    print("\nBinary fraction: {:.2f}".format(
+        binar_msk.sum() / cluster.shape[1]))
     print("Mass of single systems in obs range: {:.0f}".format(
         single_masses.sum()))
 
     print("Estimating binary masses...")
     isoch_phot_best, m1_mass, m2_mass = binary.masses(
-        cluster, gaia_ID, best_pars, binar_msk)
+        cluster, best_pars, binar_msk)
     print("Mass of binary systems in obs range: {:.0f}".format(
         m1_mass.sum() + m2_mass.sum()))
 
@@ -48,9 +43,9 @@ def main():
                 single_masses, m1_mass, m2_mass)
 
     makePlots.final(
-        clust_name, cluster, best_pars, isoch_phot_best, envelope, single_msk, binar_msk,
-        binar_probs, binar_P_thresh, splitmethod, single_masses, binar_fr_all,
-        m1_mass, m2_mass, tot_mass_1, tot_mass_2, tot_mass_3)
+        clust_name, cluster, best_pars, isoch_phot_best, envelopes, single_msk,
+        binar_msk, single_masses, m1_mass, m2_mass, tot_mass_1, tot_mass_2,
+        tot_mass_3)
 
     print("Finished")
 
