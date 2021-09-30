@@ -2,22 +2,12 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from scipy.optimize import differential_evolution
-from modules import isochHandle
-from .HARDCODED import cmd_systs, idx_header
 
 
-def singleMasses(cluster, best_pars, single_msk):
+def singleMasses(cluster, isoch_interp, mass_ini, single_msk):
     """
     Return the masses for single systems identified as such
     """
-    # Isochrone parameters
-    met, age, ext, dist = best_pars
-
-    # Read and process (met, age) isochrone
-    _, isoch_interp, mass_ini =\
-        isochHandle.isochProcess(
-            cmd_systs, idx_header, met, age, ext, dist)[:-1]
-
     distances = cdist(cluster.T, isoch_interp.T)
     # Indexes in 'isoch_interp' for each observed star
     idxs_min_dist = np.argmin(distances, 1)
@@ -34,7 +24,8 @@ def binarMasses(isoch_phot, isoch_col_mags, mass_ini, cluster, binar_systs):
     """
     Given a system identified as a binary, estimate its masses.
     """
-    # xy = np.linspace(isoch_phot[0, :].min(), isoch_phot[0, :].max() + 5, 5000)
+    # xy = np.linspace(
+    #     soch_phot[0, :].min(), isoch_phot[0, :].max() + 5, 5000)
     # x, y = np.meshgrid(xy, xy)
     # mag_comb_grid = mag_combine(x, y)
 
@@ -101,8 +92,8 @@ def binarMasses(isoch_phot, isoch_col_mags, mass_ini, cluster, binar_systs):
         #     plt.scatter(BPmag_1 - RPmag_1, Gmag_s1, c='k')
         #     plt.scatter(BPmag_2 - RPmag_2, Gmag_s2, c='k')
         #     plt.scatter(col, mag, c='g')
-        #     plt.scatter(col_binar, mag_binar, edgecolor='r', facecolor='none',
-        #                 marker='s')
+        #     plt.scatter(col_binar, mag_binar, edgecolor='r',
+        #                 facecolor='none', marker='s')
         #     plt.gca().invert_yaxis()
         #     plt.show()
 

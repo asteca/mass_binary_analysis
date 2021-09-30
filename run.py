@@ -2,14 +2,15 @@
 from pathlib import Path
 import numpy as np
 from numpy.random import MT19937, RandomState, SeedSequence
-from modules import readData, totalMass, binary, clustHandle, makePlots
+from modules import readData, imfFunc, totalMass, binary, clusterHandle,\
+    isochHandle, makePlots
+from modules.HARDCODED import cmd_systs, idx_header
 
 
 def main():
     """
     """
-
-    clust_name, best_pars, IMF_name, Max_mass, N_mass_tot, bins_list =\
+    clust_name, best_pars, low_env_perc, IMF_name, Max_mass, N_IMF_samp =\
         readData.readINI()
 
     print("\n----------------------------------")
@@ -18,56 +19,79 @@ def main():
     # Load observed cluster
     cluster = readData.loadClust(clust_name)
 
-    print("\nGenerating CDF for '{}' IMF (M_max={})...".format(
-        IMF_name, Max_mass))
-    inv_cdf = totalMass.IMF_CDF(IMF_name, Max_mass)
+    print("\nSampling the '{}' IMF (N={})...".format(IMF_name, N_IMF_samp))
+    sampled_IMF_cmass, inv_cdf = imfFunc.IMFSampling(
+        IMF_name, Max_mass, N_IMF_samp)
+
+    # Obtain the integrated IMF and mass values. Used by 'method3'
+    mass_values, IMF_int = imfFunc.IMFinteg(IMF_name)
+
+    print("Load isochrone")
+    met, age, ext, dist = best_pars
+    turn_off, isoch_phot, mass_ini, isoch_col_mags = isochHandle.isochProcess(
+        cmd_systs, idx_header, met, age, ext, dist)
 
     print("\nIdentifying single/binary systems")
-    envelopes, single_msk, binar_msk = binary.splitEnv(cluster, best_pars)
+    cluster, envelopes, single_msk, binar_msk = binary.splitEnv(
+        cluster, turn_off, isoch_phot, low_env_perc)
+    print("Binary fraction: {:.2f}".format(binar_msk.sum() / cluster.shape[1]))
 
-    single_masses = clustHandle.singleMasses(cluster, best_pars, single_msk)
-
-    print("\nBinary fraction: {:.2f}".format(
-        binar_msk.sum() / cluster.shape[1]))
-    print("Mass of single systems in obs range: {:.0f}".format(
+    single_masses = clusterHandle.singleMasses(
+        cluster, isoch_phot, mass_ini, single_msk)
+    print("\nMass of single systems in obs range: {:.0f}".format(
         single_masses.sum()))
 
     print("Estimating binary masses...")
-    isoch_phot_best, m1_mass, m2_mass = binary.masses(
-        cluster, best_pars, binar_msk)
+    m1_mass, m2_mass = binary.masses(
+        cluster, isoch_phot, mass_ini, isoch_col_mags, binar_msk)
     print("Mass of binary systems in obs range: {:.0f}".format(
         m1_mass.sum() + m2_mass.sum()))
 
-    tot_mass_1, tot_mass_2, tot_mass_3 =\
-        totMass(IMF_name, Max_mass, N_mass_tot, bins_list, inv_cdf,
-                single_masses, m1_mass, m2_mass)
+    mmin, mmax = single_masses.min(), single_masses.max()
+    # Combine single and binary (primary and secondary) masses
+    comb_masses = np.array(list(single_masses) + list(m1_mass) + list(m2_mass))
+
+    print("\nEstimating the cluster's total mass...")
+    print("Method 1...")
+    tot_mass_1 = method1(
+        Max_mass, sampled_IMF_cmass, single_masses, m1_mass, m2_mass, mmin,
+        mmax)
+    print("Total single+binary cluster mass: {:.0f}+/-{:.0f}".format(
+        tot_mass_1.mean(), tot_mass_1.std()))
+
+    print("Method 2...")
+    tot_mass_2 = method2(Max_mass, sampled_IMF_cmass, comb_masses, mmin, mmax)
+    print("Total single+binary cluster mass: {:.0f}+/-{:.0f}".format(
+        tot_mass_2.mean(), tot_mass_2.std()))
+
+    print("Method 3...")
+    tot_mass_3 = method3(
+        N_IMF_samp, mass_values, IMF_int, comb_masses, mmin, mmax)
+    print("Total single+binary cluster mass: {:.0f}+/-{:.0f}".format(
+        tot_mass_3.mean(), tot_mass_3.std()))
+
+    avrg_mass, avrg_Nmemb = avrgMassNmembs(
+        inv_cdf, tot_mass_1, tot_mass_2, tot_mass_3)
+    print("\nEstimating the average mass and total number of stars...")
+    print("<m>={:.3f} , <N>={:.0f}".format(avrg_mass, avrg_Nmemb))
 
     makePlots.final(
-        clust_name, cluster, best_pars, isoch_phot_best, envelopes, single_msk,
-        binar_msk, single_masses, m1_mass, m2_mass, tot_mass_1, tot_mass_2,
-        tot_mass_3)
-
-    print("Finished")
+        clust_name, cluster, low_env_perc, envelopes, single_msk, binar_msk,
+        single_masses, m1_mass, m2_mass, tot_mass_1, tot_mass_2, tot_mass_3)
 
 
-def totMass(
-    IMF_name, Max_mass, N_mass_tot, bins_list, inv_cdf, single_masses,
-        m1_mass, m2_mass):
+def method1(
+    Max_mass, sampled_IMF_cmass, single_masses, m1_mass, m2_mass, mmin,
+        mmax):
     """
-    Estimate the *total* combined single systems' mass
     """
-    mmin, mmax = single_masses.min(), single_masses.max()
-
-    # Method 1
-    print("\nMethod 1...")
+    # Total mass for single systems
     tot_single_mass_1 = totalMass.get(
-        IMF_name, Max_mass, inv_cdf, single_masses, mmin, mmax, N_mass_tot,
-        bins_list)
-    # print("Total mass for single systems (1): {:.0f}+/-{:.0f}".format(
-    #     tot_single_mass_1.mean(), tot_single_mass_1.std()))
+        Max_mass, sampled_IMF_cmass, single_masses, mmin, mmax)
+
+    # Mass of binary systems in obs range
     binar_mass_sum = sum(m1_mass) + sum(m2_mass)
-    # print("Mass of binary systems in obs range: {:.0f}".format(
-    #     binar_mass_sum))
+
     # Estimate the *total* binary systems' mass
     # M_fr: Fraction of single systems' mass in the observed range
     M_fr = single_masses.sum() / tot_single_mass_1
@@ -76,31 +100,77 @@ def totMass(
     # binar_mass_sum = tot_binar_mass * M_fr
     # From this we can estimate the total binary mass as:
     tot_binar_mass = binar_mass_sum / M_fr
-    # print("Total mass for binary systems (1): {:.0f}+/-{:.0f}".format(
-    #     tot_binar_mass.mean(), tot_binar_mass.std()))
+
+    # Total system's mass
     tot_mass_1 = tot_single_mass_1 + tot_binar_mass
-    print("Total single+binary cluster mass: {:.0f}+/-{:.0f}".format(
-        tot_mass_1.mean(), tot_mass_1.std()))
 
-    # Method 2
-    # Combine all masses
-    print("\nMethod 2...")
-    comb_masses = np.array(
-        list(single_masses) + list(m1_mass) + list(m2_mass))
-    tot_mass_2 = totalMass.get(
-        IMF_name, Max_mass, inv_cdf, comb_masses, mmin, mmax, N_mass_tot,
-        bins_list)
-    print("Total single+binary cluster mass: {:.0f}+/-{:.0f}".format(
-        tot_mass_2.mean(), tot_mass_2.std()))
+    return tot_mass_1
 
-    # Method 3
-    print("\nMethod 3...")
-    tot_mass_3 = totalMass.extrapolate(
-        IMF_name, comb_masses, mmin)
-    print("Total single+binary cluster mass: {:.0f}+/-{:.0f}".format(
-        tot_mass_3.mean(), tot_mass_3.std()))
 
-    return tot_mass_1, tot_mass_2, tot_mass_3
+def method2(Max_mass, sampled_IMF_cmass, comb_masses, mmin, mmax):
+    """
+    Same as 'method1' but ....
+    """
+    return totalMass.get(Max_mass, sampled_IMF_cmass, comb_masses, mmin, mmax)
+
+
+def method3(N_IMF_samp, mass_values, IMF_int, comb_masses, mmin, mmax):
+    """
+    """
+    # Percentage of mass up to the minimum observed mas
+    idx = np.argmin(abs(mmin - mass_values))
+    perc_mass_min = np.cumsum(IMF_int)[idx]
+    mmax = np.percentile(comb_masses, 99.)
+    idx = np.argmin(abs(mmax - mass_values))
+    # Percentage of mass up to the maximum observed mass
+    perc_mass_max = np.cumsum(IMF_int)[idx]
+    # Percentage of mass in the observed range, given by the IMF
+    perc_obs = perc_mass_max - perc_mass_min
+    print("(M_below~{:.0f}% , M_obs~{:.0f}% , M_above~{:.0f}%)".format(
+        perc_mass_min * 100, perc_obs * 100, (1 - perc_mass_max) * 100))
+
+    # Bootstrap the total mass
+    tot_mass = []
+    for _ in range(N_IMF_samp):
+        # Sample the masses of *all* single systems
+        ran_masses = np.random.choice(comb_masses, len(comb_masses))
+        # Keep stars within the observed range
+        msk = (ran_masses >= mmin) & (ran_masses <= mmax)
+        # Mass in the observed range
+        mass_obs = ran_masses[msk].sum()
+        # Total mass given by a simple rule:
+        # if   perc_obs  ----> mass_obs
+        # then    1  --------> M_t = mass_ob/perc_obs
+        tot_mass.append(mass_obs / perc_obs)
+
+    return np.array(tot_mass)
+
+
+def avrgMassNmembs(inv_cdf, tot_mass_1, tot_mass_2, tot_mass_3):
+    """
+    Estimate the average mass and total number of members
+    """
+
+    # Combine a third of each list of masses into a single list
+    idx1 = np.random.choice(
+        range(tot_mass_1.size), int(.3 * (tot_mass_1.size)), replace=False)
+    idx2 = np.random.choice(
+        range(tot_mass_2.size), int(.3 * (tot_mass_2.size)), replace=False)
+    idx3 = np.random.choice(
+        range(tot_mass_3.size), int(.3 * (tot_mass_3.size)), replace=False)
+    mass_123 = list(tot_mass_1[idx1]) + list(tot_mass_2[idx2])\
+        + list(tot_mass_3[idx3])
+
+    # For each mass, sample the IMF and estimate the average mass and number
+    # of stars
+    avrg_m_N = []
+    for m123 in mass_123:
+        sampled_IMF = imfFunc.getIMF(m123, inv_cdf)[0]
+        avrg_m_N.append([sampled_IMF.mean(), sampled_IMF.size])
+    avrg_m_N = np.array(avrg_m_N).T
+    avrg_mass, avrg_Nmemb = avrg_m_N[0].mean(), avrg_m_N[1].mean()
+
+    return avrg_mass, avrg_Nmemb
 
 
 if __name__ == '__main__':

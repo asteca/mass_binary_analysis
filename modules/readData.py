@@ -16,13 +16,16 @@ def readINI():
     clust_name = clust_pars['name']
     best_pars = list(map(float, clust_pars['best_pars'].split()))
 
+    binar_pars = in_params['Binary estimation']
+    low_env_perc = binar_pars.getfloat('low_env_perc')
+
     imf_pars = in_params['IMF parameters']
     IMF_name = imf_pars.get('IMF_name')
     Max_mass = imf_pars.getfloat('Max_mass')
-    N_mass_tot = imf_pars.getint('N_mass_tot')
-    bins_list = list(map(int, imf_pars['bins_list'].split()))
+    N_IMF_samp = imf_pars.getint('N_IMF_samp')
 
-    return clust_name, best_pars, IMF_name, Max_mass, N_mass_tot, bins_list
+    return clust_name, best_pars, low_env_perc, IMF_name, Max_mass,\
+        N_IMF_samp
 
 
 def loadClust(clust_name, max_e=0.3):
@@ -40,6 +43,8 @@ def loadClust(clust_name, max_e=0.3):
     except AttributeError:
         msk2 = np.array([])
     # msk2 = (cluster['e_Gmag'] >= max_e) | (cluster['e_BP-RP'] >= max_e)
+
+    msk = np.array([])
     if msk1.any() and msk2.any():
         msk = msk1 | msk2
     elif msk1.any() and not msk2.any():
@@ -47,8 +52,9 @@ def loadClust(clust_name, max_e=0.3):
     elif not msk1.any() and msk2.any():
         msk = msk2
 
-    print("{} masked stars".format(msk.sum()))
-    cluster = cluster[~msk]
+    if msk.any():
+        print("{} masked stars".format(msk.sum()))
+        cluster = cluster[~msk]
     cluster = np.array([cluster[mag_name], cluster[col_name]])
     print("{} final members".format(cluster.shape[-1]))
     return cluster
