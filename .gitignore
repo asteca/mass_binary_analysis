@@ -131,3 +131,5 @@ dmypy.json
 input/*
 out/*
 *.dat
+
+*sublime*

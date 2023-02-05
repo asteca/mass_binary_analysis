@@ -6,14 +6,15 @@ from scipy.interpolate import interp1d
 
 # Low mass limits for each IMF. Defined slightly larger to avoid sampling
 # issues.
-imfs_dict = {
-    'chabrier_2001_exp': 0.011, 'chabrier_2001_log': 0.011,
-    'kroupa_1993': 0.081, 'kroupa_2002': 0.01, 'salpeter_1955': 0.31}
-m_high = 150
+# imfs_dict = {
+#     'chabrier_2001_exp': 0.011, 'chabrier_2001_log': 0.011,
+#     'kroupa_1993': 0.081, 'kroupa_2002': 0.01, 'salpeter_1955': 0.31}
+m_low, m_high = 0.08, 150
 
 
 def IMFSampling(IMF_name, Max_mass, N_mass_tot):
     """
+    N ~ 2.5 * M
     """
     inv_cdf = IMF_CDF(IMF_name)
 
@@ -31,7 +32,7 @@ def IMF_CDF(IMF_name, mass_step=0.05):
     Generate the inverse CDF for the selected IMF.
     """
     # IMF low mass limit.
-    m_low = imfs_dict[IMF_name]
+    # m_low = imfs_dict[IMF_name]
 
     # IMF mass interpolation step and grid values.
     mass_values = np.arange(m_low, m_high, mass_step)
@@ -75,7 +76,7 @@ def IMFinteg(IMF_name, mass_step=0.05):
     """
     """
     # IMF low mass limit.
-    m_low = imfs_dict[IMF_name]
+    # m_low = imfs_dict[IMF_name]
 
     # IMF mass interpolation step and grid values.
     mass_values = np.arange(m_low, m_high, mass_step)

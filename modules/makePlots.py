@@ -11,7 +11,7 @@ def final(
     """
     """
     fig = plt.figure(figsize=(12, 12))
-    GS = gridspec.GridSpec(2, 2) 
+    GS = gridspec.GridSpec(2, 2)
 
     ax = plt.subplot(GS[0])
     ax.minorticks_on()
@@ -38,7 +38,7 @@ def final(
     ax = plt.subplot(GS[1])
     q = m2_mass / m1_mass
     plt.title("N={}".format(len(q)))
-    hist(q, bins=10, ax=ax, histtype='stepfilled', alpha=0.4,
+    hist(q, bins='blocks', ax=ax, histtype='stepfilled', alpha=0.4,
          density=True)
     plt.xlabel(r"$q\;(m2/m1)$")
     plt.xlim(-0.02, 1.02)
